@@ -1,0 +1,20 @@
+# bdev-cli dependencies
+# Python 3.10+ required
+
+# UI Framework - Rich console output
+rich>=13.0
+
+# Interactive REPL with history and autocompletion
+prompt_toolkit>=3.0
+
+# CLI routing and command handling
+typer>=0.9
+
+# Security & Cryptography
+pyotp>=2.9
+passlib[bcrypt]>=1.7
+cryptography>=41.0
+
+# Testing
+pytest>=7.0
+pytest-mock>=3.0

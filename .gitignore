@@ -1,0 +1,80 @@
+# bdev-cli .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Distribution
+*.manifest
+*.spec
+
+# Logs
+*.log
+pip-log.txt
+
+# Local config
+.env
+.env.*
+!.env.example
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Project specific
+*.bak
+*.tmp
+nul
+
+# B.DEV CLI
+*.egg-info/
+.eggs/
+bdev_cli.egg-info/
+dist/
+build/
+
+# Node modules (for web UI)
+node_modules/
+
+# B.DEV data
+.bdev/
+

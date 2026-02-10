@@ -2,7 +2,7 @@
 REPL (Read-Eval-Print Loop) for bdev-cli.
 
 Provides an interactive command interface with history,
-auto-completion, and custom styling using PromptToolkit.
+auto-completion, Claude Code styling, and smooth micro-animations.
 """
 
 from typing import Callable, Dict, Optional, Any
@@ -13,9 +13,11 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
+import time
 
 from cli.utils.ui import console
 from cli.utils.theme import theme
+from cli.utils.animation import animations
 from cli.utils.errors import handle_errors, CommandError
 from cli.core.config import config
 from cli.plugins import registry
@@ -23,13 +25,15 @@ from cli.plugins import registry
 
 class REPLSession:
     """
-    Interactive REPL session with history and auto-completion.
+    Interactive REPL session with history, auto-completion, and Claude Code styling.
 
     Features:
         - Persistent command history
         - Auto-suggestions from history
         - Tab completion for commands
-        - Custom Claude-styled prompt
+        - Animated prompt with status indicator
+        - Command execution feedback
+        - Smooth micro-animations
         - Graceful exit handling
         - Dynamic Plugin System
 
@@ -41,23 +45,34 @@ class REPLSession:
 
     HISTORY_FILE = Path.home() / ".bdev" / "repl_history"
 
+    # Prompt states
+    STATE_IDLE = "idle"
+    STATE_WORKING = "working"
+    STATE_SUCCESS = "success"
+    STATE_ERROR = "error"
+
     def __init__(self) -> None:
         self._ensure_history_dir()
         self._commands: Dict[str, Dict[str, Any]] = {}
         self._running: bool = False
         self._last_args: list[str] = []
+        self._current_state: str = self.STATE_IDLE
 
         # Load plugins if enabled
         if config.get("plugins_enabled", True):
             count = registry.load_plugins()
             if count > 0:
-                console.muted(f"Loaded {count} plugins.")
+                console.spinner(f"Loaded {count} plugins")
 
-        # PromptToolkit styles
+        # PromptToolkit styles - Claude Code inspired
         self._style = Style.from_dict(
             {
                 "prompt": theme.palette.PRIMARY,
-                "prompt.symbol": theme.palette.PRIMARY_LIGHT,
+                "prompt.bracket": theme.palette.PRIMARY_FADE,
+                "prompt.text": theme.palette.TEXT,
+                "prompt.status": theme.palette.PRIMARY_FADE,
+                "prompt.status.success": theme.palette.SUCCESS,
+                "prompt.status.error": theme.palette.ERROR,
             }
         )
 
@@ -117,25 +132,81 @@ class REPLSession:
         return WordCompleter(list(self._commands.keys()), ignore_case=True)
 
     def _get_prompt(self) -> HTML:
-        """Generate the styled prompt."""
+        """
+        Generate Claude Code-style prompt with status indicator.
+
+        Status indicators:
+            ● - Idle (waiting for input)
+            ◉ - Working (executing command)
+            ✓ - Success (last command succeeded)
+            ✗ - Error (last command failed)
+        """
+        p = theme.palette
+
+        status_icons = {
+            self.STATE_IDLE: "●",
+            self.STATE_WORKING: "◉",
+            self.STATE_SUCCESS: "✓",
+            self.STATE_ERROR: "✗",
+        }
+
+        status_style = {
+            self.STATE_IDLE: "prompt.status",
+            self.STATE_WORKING: "prompt.status",
+            self.STATE_SUCCESS: "prompt.status.success",
+            self.STATE_ERROR: "prompt.status.error",
+        }
+
+        icon = status_icons.get(self._current_state, "●")
+        icon_style = status_style.get(self._current_state, "prompt.status")
+
         return HTML(
-            "<prompt.symbol>B.DEV</prompt.symbol><prompt.symbol>></prompt.symbol> "
+            f"<{icon_style}>{icon}</{icon_style}> "
+            "<prompt.bracket>[</prompt.bracket>"
+            "<prompt>B.DEV</prompt>"
+            "<prompt.bracket>]</prompt.bracket>"
+            "<prompt.text> </prompt.text>"
         )
+
+    def _set_state(self, state: str) -> None:
+        """Set current prompt state."""
+        self._current_state = state
 
     # Built-in command handlers
     def _cmd_help(self) -> None:
-        """Display available commands."""
-        console.rule("Available Commands")
-        rows = [
-            [name, cmd.get("description", "")]
-            for name, cmd in sorted(self._commands.items())
+        """Display available commands in Claude Code style."""
+        console.header("Available Commands", animate=True)
+
+        # Group commands by type
+        builtin_cmds = [
+            (name, cmd.get("description", "No description"))
+            for name, cmd in self._commands.items()
+            if not self._is_plugin_command(name)
         ]
-        console.table("Commands", ["Command", "Description"], rows)
+        plugin_cmds = [
+            (name, cmd.get("description", "No description"))
+            for name, cmd in self._commands.items()
+            if self._is_plugin_command(name)
+        ]
+
+        if builtin_cmds:
+            console.section("Built-in Commands")
+            console.command_list(builtin_cmds, animate=True)
+
+        if plugin_cmds:
+            console.section("Plugin Commands")
+            console.command_list(plugin_cmds, animate=True)
+
+    def _is_plugin_command(self, name: str) -> bool:
+        """Check if command is from a plugin."""
+        builtin = {"help", "exit", "quit", "clear", "version", "config", "security"}
+        return name not in builtin
 
     def _cmd_exit(self) -> None:
         """Exit the REPL loop."""
         self._running = False
-        console.info("Goodbye!")
+        self._set_state(self.STATE_SUCCESS)
+        console.info("Goodbye!", animate=True)
 
     def _cmd_clear(self) -> None:
         """Clear terminal screen."""
@@ -170,9 +241,10 @@ class REPLSession:
             return
 
         # Show all config
+        console.header("Configuration")
         data = config.get_all()
         rows = [[k, str(v)] for k, v in sorted(data.items())]
-        console.table("Configuration", ["Key", "Value"], rows)
+        console.table(rows=rows)
 
     def _cmd_security(self, action: str = "status") -> None:
         """
@@ -191,18 +263,17 @@ class REPLSession:
         action = action.lower()
 
         if action == "status":
+            console.header("Security Status")
             status = security.get_status()
             rows = [
-                ["MFA Enabled", str(status["mfa_enabled"])],
-                ["MFA Verified", str(status["mfa_verified"])],
+                ["MFA", "Enabled" if status["mfa_enabled"] else "Disabled"],
                 ["Sandbox", "Enabled" if status["sandbox_enabled"] else "Disabled"],
                 [
                     "Privilege Block",
                     "Enabled" if status["privilege_block_enabled"] else "Disabled",
                 ],
-                ["Session Timeout", f"{status['session_timeout']}s"],
             ]
-            console.table("Security Status", ["Feature", "Status"], rows)
+            console.table(rows=rows)
 
         elif action == "mfa":
             if len(self._last_args) < 2:
@@ -250,7 +321,7 @@ class REPLSession:
     @handle_errors(show_traceback=False)
     def _execute_command(self, user_input: str) -> None:
         """
-        Parse and execute a command.
+        Parse and execute a command with Claude Code animations.
 
         Supports both regular commands and /slash commands.
 
@@ -273,6 +344,7 @@ class REPLSession:
             command_name = command_name[1:]  # Strip leading /
 
         if command_name not in self._commands:
+            self._set_state(self.STATE_ERROR)
             raise CommandError(
                 f"Unknown command: '{command_name}'. Type 'help' for available commands.",
                 command=command_name,
@@ -281,25 +353,54 @@ class REPLSession:
         handler = self._commands[command_name].get("handler")
 
         if handler is None:
+            self._set_state(self.STATE_ERROR)
             raise CommandError(
                 f"Invalid command handler: '{command_name}'", command=command_name
             )
 
-        # Call handler with args if it accepts them
+        # Set working state
+        self._set_state(self.STATE_WORKING)
+
         try:
+            # Execute handler with subtle feedback
             handler(*args)
-        except TypeError:
-            handler()
+
+            # Set success state
+            self._set_state(self.STATE_SUCCESS)
+
+            # Auto-reset to idle after a moment
+            def _reset_to_idle():
+                time.sleep(0.3)
+                if self._current_state in (self.STATE_SUCCESS, self.STATE_ERROR):
+                    self._set_state(self.STATE_IDLE)
+
+            import threading
+
+            threading.Thread(target=_reset_to_idle, daemon=True).start()
+
+        except Exception as e:
+            self._set_state(self.STATE_ERROR)
+            raise
 
     def run(self) -> None:
         """
-        Start the interactive REPL loop.
+        Start the interactive REPL loop with Claude Code styling.
 
         Loop continues until 'exit' command or Ctrl+D.
         Ctrl+C cancels current input but doesn't exit.
         """
-        console.banner("B.DEV CLI")
-        console.muted("Type 'help' for commands, 'exit' to quit.\n")
+        # Animated welcome
+        console.banner(animate=True)
+
+        if animations.enabled:
+            time.sleep(0.15)
+
+        console.muted("Type 'help' for available commands.")
+
+        if animations.enabled:
+            time.sleep(0.1)
+
+        console.muted("Use 'exit' or Ctrl+D to quit.\n")
 
         self._running = True
 
@@ -311,12 +412,15 @@ class REPLSession:
                 self._execute_command(user_input)
 
             except KeyboardInterrupt:
-                console.print()  # New line after ^C
-                console.warning("Use 'exit' or Ctrl+D to quit.")
+                console.print()
+                console.dim("Use 'exit' or Ctrl+D to quit.")
+                self._set_state(self.STATE_IDLE)
                 continue
 
             except EOFError:
-                # Ctrl+D pressed
                 console.print()
-                self._cmd_exit()
+                console.muted("Goodbye!")
+                if animations.enabled:
+                    time.sleep(0.15)
+                self._running = False
                 break

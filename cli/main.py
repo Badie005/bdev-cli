@@ -43,9 +43,9 @@ def repl() -> None:
 def version() -> None:
     """Display the current CLI version."""
     console.panel(
-        f"[primary]bdev-cli[/primary] version [success]{__version__}[/success]",
-        title="Version Info",
-        border_style="primary",
+        f"v{__version__}",
+        title="B.DEV CLI",
+        border_style="panel.border",
     )
 
 
@@ -53,13 +53,15 @@ def version() -> None:
 def security_status() -> None:
     """Show security status and features."""
     status = security.get_status()
-    console.panel(
-        f"MFA: {'Enabled' if status['mfa_enabled'] else 'Disabled'}\n"
-        f"Sandbox: {'Enabled' if status['sandbox_enabled'] else 'Disabled'}\n"
-        f"Privilege Block: {'Enabled' if status['privilege_block_enabled'] else 'Disabled'}",
-        title="Security Status",
-        border_style="success" if status["mfa_enabled"] else "warning",
-    )
+    rows = [
+        ["MFA", "Enabled" if status["mfa_enabled"] else "Disabled"],
+        ["Sandbox", "Enabled" if status["sandbox_enabled"] else "Disabled"],
+        [
+            "Privilege Block",
+            "Enabled" if status["privilege_block_enabled"] else "Disabled",
+        ],
+    ]
+    console.table(title="Security Status", rows=rows)
 
 
 @app.command()
@@ -71,10 +73,12 @@ def hello(name: Optional[str] = typer.Argument(None, help="Name to greet")) -> N
     Args:
         name: Optional name for personalized greeting.
     """
+    console.empty_line()
     if name:
-        console.success(f"Hello, {name}!")
+        console.print(f"  Hello, [primary]{name}![/primary]  ", justify="center")
     else:
-        console.success("Hello, World!")
+        console.print("  [primary]Hello, World![/primary]  ", justify="center")
+    console.empty_line()
 
 
 @app.callback(invoke_without_command=True)

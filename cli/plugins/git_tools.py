@@ -632,3 +632,493 @@ class GitRemotePlugin(GitBasePlugin):
         console.table("Remote Repositories", ["Name", "URL"], rows)
 
         return remotes
+
+
+class GitMergePlugin(GitBasePlugin):
+    """Merge branches."""
+
+    @property
+    def name(self) -> str:
+        return "git_merge"
+
+    @property
+    def description(self) -> str:
+        return "Merge branch into current (git_merge <branch>)"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Merge a branch into current branch."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        if not args:
+            console.error("Usage: git_merge <branch>")
+            return None
+
+        branch = args[0]
+        no_ff = "--no-ff" if len(args) > 1 and args[1] == "--no-ff" else ""
+
+        console.info(f"Merging {branch} into current branch...")
+
+        git_args = ["merge"]
+        if no_ff:
+            git_args.append(no_ff)
+        git_args.append(branch)
+
+        result = self._run_git(git_args)
+
+        if result.returncode != 0:
+            console.error(f"Merge failed: {result.stderr.strip()}")
+            return False
+
+        console.success(f"Merge completed: {branch}")
+        return True
+
+
+class GitRebasePlugin(GitBasePlugin):
+    """Rebase operations."""
+
+    @property
+    def name(self) -> str:
+        return "git_rebase"
+
+    @property
+    def description(self) -> str:
+        return "Rebase current branch (git_rebase <branch>|--continue|--abort)"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Handle rebase operations."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        if not args:
+            console.error("Usage: git_rebase <branch>|--continue|--abort")
+            return None
+
+        action = args[0]
+
+        if action == "--continue":
+            console.info("Continuing rebase...")
+            result = self._run_git(["rebase", "--continue"])
+        elif action == "--abort":
+            console.info("Aborting rebase...")
+            result = self._run_git(["rebase", "--abort"])
+        else:
+            console.info(f"Rebasing onto {action}...")
+            result = self._run_git(["rebase", action])
+
+        if result.returncode != 0:
+            console.error(f"Rebase failed: {result.stderr.strip()}")
+            return False
+
+        console.success("Rebase completed")
+        return True
+
+
+class GitResetPlugin(GitBasePlugin):
+    """Reset to previous state."""
+
+    @property
+    def name(self) -> str:
+        return "git_reset"
+
+    @property
+    def description(self) -> str:
+        return "Reset (git_reset [--soft|--mixed|--hard] <commit>)"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Reset to a specific commit."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        mode = "--mixed"
+        commit = None
+
+        if args:
+            if args[0] in ["--soft", "--mixed", "--hard"]:
+                mode = args[0]
+                commit = args[1] if len(args) > 1 else "HEAD"
+            else:
+                commit = args[0]
+
+        if not commit:
+            console.error("Usage: git_reset [--soft|--mixed|--hard] <commit>")
+            return None
+
+        mode_desc = {
+            "--soft": "Keep changes staged",
+            "--mixed": "Keep changes unstaged (default)",
+            "--hard": "Discard all changes",
+        }
+
+        console.warning(f"Resetting {mode_desc.get(mode, mode)} to {commit}")
+        result = self._run_git(["reset", mode, commit])
+
+        if result.returncode != 0:
+            console.error(f"Reset failed: {result.stderr.strip()}")
+            return False
+
+        console.success(f"Reset to {commit}")
+        return True
+
+
+class GitRevertPlugin(GitBasePlugin):
+    """Revert commits."""
+
+    @property
+    def name(self) -> str:
+        return "git_revert"
+
+    @property
+    def description(self) -> str:
+        return "Revert commit (git_revert <commit>)"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Revert a specific commit."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        if not args:
+            console.error("Usage: git_revert <commit>")
+            return None
+
+        commit = args[0]
+        no_edit = "--no-edit" if len(args) > 1 and args[1] == "--no-edit" else ""
+
+        console.info(f"Reverting commit {commit}...")
+
+        git_args = ["revert", commit]
+        if no_edit:
+            git_args.append(no_edit)
+
+        result = self._run_git(git_args)
+
+        if result.returncode != 0:
+            console.error(f"Revert failed: {result.stderr.strip()}")
+            return False
+
+        console.success(f"Reverted commit {commit}")
+        return True
+
+
+class GitTagPlugin(GitBasePlugin):
+    """Manage tags."""
+
+    @property
+    def name(self) -> str:
+        return "git_tag"
+
+    @property
+    def description(self) -> str:
+        return "List/create tags (git_tag [name] [message])"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Handle tag operations."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        if not args:
+            return self._list_tags()
+
+        tag_name = args[0]
+        message = " ".join(args[1:]) if len(args) > 1 else None
+
+        if message:
+            return self._create_tag(tag_name, message)
+        else:
+            return self._show_tag(tag_name)
+
+    def _list_tags(self) -> List[dict]:
+        """List all tags."""
+        result = self._run_git(["tag", "-l", "-n9"])
+
+        if result.returncode != 0:
+            console.error("Failed to list tags.")
+            return []
+
+        tags = []
+        for line in result.stdout.strip().split("\n"):
+            if line:
+                parts = line.split(None, 1)
+                tags.append(
+                    {"name": parts[0], "message": parts[1] if len(parts) > 1 else ""}
+                )
+
+        if not tags:
+            console.info("No tags found.")
+            return []
+
+        console.rule("Tags")
+        rows = [[t["name"], t["message"][:40]] for t in tags]
+        console.table("Tags", ["Name", "Message"], rows)
+
+        return tags
+
+    def _create_tag(self, name: str, message: str) -> bool:
+        """Create a new tag."""
+        result = self._run_git(["tag", "-a", name, "-m", message])
+
+        if result.returncode != 0:
+            console.error(f"Failed to create tag: {result.stderr.strip()}")
+            return False
+
+        console.success(f"Created tag: {name}")
+        return True
+
+    def _show_tag(self, name: str) -> bool:
+        """Show tag details."""
+        result = self._run_git(["show", name])
+
+        if result.returncode != 0:
+            console.error(f"Tag not found: {result.stderr.strip()}")
+            return False
+
+        console.rule(f"Tag: {name}")
+        console.muted(result.stdout)
+        return True
+
+
+class GitBlamePlugin(GitBasePlugin):
+    """Show blame information."""
+
+    @property
+    def name(self) -> str:
+        return "git_blame"
+
+    @property
+    def description(self) -> str:
+        return "Show blame info (git_blame <file> [line])"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Show blame information for a file."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        if not args:
+            console.error("Usage: git_blame <file> [line]")
+            return None
+
+        file_path = args[0]
+
+        result = self._run_git(["blame", file_path])
+
+        if result.returncode != 0:
+            console.error(f"Blame failed: {result.stderr.strip()}")
+            return None
+
+        console.rule(f"Blame: {file_path}")
+        console.muted(result.stdout)
+        return result.stdout
+
+
+class GitShowPlugin(GitBasePlugin):
+    """Show commit details."""
+
+    @property
+    def name(self) -> str:
+        return "git_show"
+
+    @property
+    def description(self) -> str:
+        return "Show commit details (git_show [commit])"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Show commit details."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        commit = args[0] if args else "HEAD"
+
+        result = self._run_git(["show", commit])
+
+        if result.returncode != 0:
+            console.error(f"Show failed: {result.stderr.strip()}")
+            return None
+
+        console.rule(f"Commit: {commit}")
+        console.muted(result.stdout)
+        return result.stdout
+
+
+class GitFetchPlugin(GitBasePlugin):
+    """Fetch from remote."""
+
+    @property
+    def name(self) -> str:
+        return "git_fetch"
+
+    @property
+    def description(self) -> str:
+        return "Fetch from remote (git_fetch [remote])"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Fetch changes from remote."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        remote = args[0] if args else "origin"
+        all_branches = "--all" if len(args) > 1 and args[1] == "--all" else ""
+
+        console.info(f"Fetching from {remote}...")
+
+        git_args = ["fetch", remote]
+        if all_branches:
+            git_args.append(all_branches)
+
+        result = self._run_git(git_args)
+
+        if result.returncode != 0:
+            console.error(f"Fetch failed: {result.stderr.strip()}")
+            return False
+
+        console.success("Fetch completed")
+        if result.stdout.strip():
+            console.muted(result.stdout)
+
+        return True
+
+
+class GitCleanPlugin(GitBasePlugin):
+    """Clean untracked files."""
+
+    @property
+    def name(self) -> str:
+        return "git_clean"
+
+    @property
+    def description(self) -> str:
+        return "Clean untracked files (git_clean [--dry-run|-d])"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Clean untracked files."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        dry_run = "--dry-run" if not args or args[0] == "--dry-run" else ""
+        dirs = "-d" if any(a == "-d" for a in args) else ""
+
+        git_args = ["clean", "-f"]
+        if dirs:
+            git_args.append(dirs)
+        if dry_run:
+            git_args.append(dry_run)
+
+        console.info("Cleaning untracked files...")
+
+        if dry_run:
+            console.info("Dry run mode - no files will be deleted")
+
+        result = self._run_git(git_args)
+
+        if result.returncode != 0:
+            console.error(f"Clean failed: {result.stderr.strip()}")
+            return False
+
+        if result.stdout.strip():
+            console.muted(result.stdout)
+
+        if not dry_run:
+            console.success("Clean completed")
+        else:
+            console.info("Preview completed")
+
+        return True
+
+
+class GitConfigPlugin(GitBasePlugin):
+    """Git configuration management."""
+
+    @property
+    def name(self) -> str:
+        return "git_config"
+
+    @property
+    def description(self) -> str:
+        return "Git config (git_config [key] [value]|--list)"
+
+    @handle_errors()
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        """Handle git configuration."""
+        if not self._check_git_repo():
+            console.error("Not a Git repository.")
+            return None
+
+        if not args:
+            return self._list_config()
+
+        if args[0] == "--list":
+            return self._list_config()
+
+        if len(args) == 1:
+            return self._get_config(args[0])
+
+        if len(args) >= 2:
+            return self._set_config(args[0], " ".join(args[1:]))
+
+    def _list_config(self) -> Dict[str, str]:
+        """List all git configuration."""
+        result = self._run_git(["config", "--list"])
+
+        if result.returncode != 0:
+            console.error("Failed to get config.")
+            return {}
+
+        config = {}
+        for line in result.stdout.strip().split("\n"):
+            if "=" in line:
+                key, value = line.split("=", 1)
+                config[key] = value
+
+        console.rule("Git Configuration")
+        rows = [[k, v] for k, v in sorted(config.items())]
+        console.table("Config", ["Key", "Value"], rows)
+
+        return config
+
+    def _get_config(self, key: str) -> str:
+        """Get a specific config value."""
+        result = self._run_git(["config", key])
+
+        if result.returncode != 0:
+            console.error(f"Config not found: {key}")
+            return ""
+
+        console.info(f"{key} = {result.stdout.strip()}")
+        return result.stdout.strip()
+
+    def _set_config(self, key: str, value: str) -> bool:
+        """Set a config value."""
+        global_flag = "--global" if key.startswith("--global ") else ""
+        if global_flag:
+            key = key.replace("--global ", "")
+
+        git_args = ["config"]
+        if global_flag:
+            git_args.append(global_flag)
+        git_args.extend([key, value])
+
+        result = self._run_git(git_args)
+
+        if result.returncode != 0:
+            console.error(f"Failed to set config: {result.stderr.strip()}")
+            return False
+
+        console.success(f"Set {key} = {value}")
+        return True

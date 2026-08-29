@@ -8,7 +8,7 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Define the project directory
-$projectDir = "C:\Users\B.LAPTOP\Dev\Projects\bdev-cli"
+$projectDir = $PSScriptRoot
 
 # Add project directory to current session PATH
 if ($env:Path -notlike "*$projectDir*") {

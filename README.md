@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 
 **B.DEV CLI** - Votre Assistant de Developpement Personnel
 
@@ -187,7 +187,7 @@ snippets export, import, languages, categories
 ### "bdev not found"
 ```powershell
 # Charger dans session actuelle
-& "C:\Users\B.LAPTOP\Dev\Projects\bdev-cli\use-bdev-now.ps1"
+& "$HOME\bdev-cli\use-bdev-now.ps1"
 ```
 
 ### REPL ne fonctionne pas

@@ -55,7 +55,7 @@ if (-not (Test-Path $binDir)) {
 $globalBatchContent = @"
 @echo off
 REM B.DEV CLI Launcher - Global installation
-set "PROJECT_DIR=C:\Users\B.LAPTOP\Dev\Projects\bdev-cli"
+set "PROJECT_DIR=%~dp0"
 set "PYTHON_EXE=%PROJECT_DIR%\venv\Scripts\python.exe"
 if exist "%PYTHON_EXE%" (
     "%PYTHON_EXE%" -m cli.main %*

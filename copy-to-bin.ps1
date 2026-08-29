@@ -1,6 +1,6 @@
 # Copy B.DEV to AppData\Local\bin
 $binDir = "$env:LOCALAPPDATA\bin"
-$projectDir = "C:\Users\B.LAPTOP\Dev\Projects\bdev-cli"
+$projectDir = $PSScriptRoot
 
 Write-Host "[INFO] Copying B.DEV files to $binDir..." -ForegroundColor Cyan
 

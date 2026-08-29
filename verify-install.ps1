@@ -6,7 +6,7 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Check directories
-$projectDir = "C:\Users\B.LAPTOP\Dev\Projects\bdev-cli"
+$projectDir = $PSScriptRoot
 $binDir = "$env:LOCALAPPDATA\bin"
 
 Write-Host "[CHECK] Project directory:" -ForegroundColor Yellow

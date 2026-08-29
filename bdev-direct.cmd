@@ -3,7 +3,8 @@ REM B.DEV CLI Direct Mode - Simple command interface for Windows
 REM Works without terminal emulator requirements
 
 setlocal
-set "PROJECT_DIR=C:\Users\B.LAPTOP\Dev\Projects\bdev-cli"
+set "PROJECT_DIR=%~dp0"
+set "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 set "PYTHON_EXE=%PROJECT_DIR%\venv\Scripts\python.exe"
 set "DIRECT_SCRIPT=%PROJECT_DIR%\bdev_direct.py"
 
